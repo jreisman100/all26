@@ -24,6 +24,8 @@ import java.text.spi.NumberFormatProvider;
 
 import org.team100.lib.coherence.Cache;
 import org.team100.lib.motor.ctre.KrakenX60Motor;
+import org.team100.lib.motor.ctre.Talon6Encoder;
+import org.team100.lib.motor.ctre.Falcon500Motor;
 import org.team100.lib.util.Startup;
 import org.team100.lib.config.CurrentLimit;
 import org.team100.lib.config.Friction;
@@ -31,7 +33,6 @@ import org.team100.lib.config.PIDConstants;
 import org.team100.lib.motor.MotorPhase;
 import org.team100.lib.motor.NeutralMode100;
 import org.team100.lib.util.CanId;
-import org.team100.lib.util.Clamp;
 
 
 
@@ -43,13 +44,27 @@ import org.team100.lib.util.Clamp;
 public class Robot extends TimedRobot100 {
   private static final String kDefaultAuto = "Default";
   private static final String kCustomAuto = "My Auto";
-  private final Clamp clamp = new Clamp(-0.1,0.1);
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
   private final RobotLog m_robotLog;
-  KrakenX60Motor motor;
+  private final double pctDutyCycleLimit = 20.0/100.0;
+
+  Falcon500Motor motor;
   private final DriverXboxControl m_control;
   private double m_dutyCycle;
+  private Talon6Encoder m_encoder; 
+
+  private boolean joystickModeEnabled = true;
+  private boolean Btesting = false;
+  private boolean down = false;
+  private boolean bbuffer = false;
+  private boolean abuffer = false;
+
+  private double target_rotations_S = 1;
+  private double current_rotations_S;
+  private double error_rotations_S;
+
+  private double current;
 
   /**
    * This function is run when the robot is first started up and should be used for any
@@ -65,15 +80,16 @@ public class Robot extends TimedRobot100 {
     m_chooser.addOption("My Auto", kCustomAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
 
-    CanId canId19 = new CanId(19);
+    CanId canId36 = new CanId(36);
     NeutralMode100 neutral = NeutralMode100.COAST;
     MotorPhase phase = MotorPhase.FORWARD;
     CurrentLimit limit = new CurrentLimit(10,10);
     Friction friction = new Friction(0,0,0,0);
     PIDConstants pid = new PIDConstants(0,0,0,0,0,0);
-    motor = new KrakenX60Motor(log.name("motor"), currentLog, canId19, neutral, phase, limit, friction, pid);
-
+    motor = new Falcon500Motor(log.name("motor"), currentLog, canId36, neutral, phase, limit, friction, pid);
+    m_encoder = motor.encoder();
     m_control = new DriverXboxControl(log, 0);
+
   }
 
   /**
@@ -86,11 +102,42 @@ public class Robot extends TimedRobot100 {
 
   @Override
   public void robotPeriodic() {
+      //velocityRad_S = motor.encoder().getVelocityRad_S();
+
       Takt.update();
       Cache.refresh();
       LogPoller.log();
 
-      
+      current_rotations_S = (m_encoder.getVelocityRad_S() / (2*Math.PI))/4.0;
+      error_rotations_S = target_rotations_S-current_rotations_S;
+
+      SmartDashboard.putNumber("Discus/Rotations (s)/Actual", current_rotations_S);
+      SmartDashboard.putNumber("Discus/Rotations (s)/Error", error_rotations_S);
+      SmartDashboard.putNumber("Discus/Rotations (s)/Target", target_rotations_S);
+
+
+      down = m_control.b();
+      if (down && !bbuffer) {
+        bbuffer = true;
+        if (!joystickModeEnabled) {
+          Btesting = !Btesting;
+          System.out.println("Inverted Btesting "+Btesting);
+        }
+      } else if (!down) {
+        bbuffer = false;
+      }
+
+      down = m_control.a();
+      if (down && !abuffer) {
+        abuffer = true;
+        if (!Btesting) {
+          joystickModeEnabled = !joystickModeEnabled;
+          System.out.println("Inverted joystickEnabled "+joystickModeEnabled);
+        }
+      } else if (!down) {
+        abuffer = false;
+      }
+
   }
 
   /**
@@ -128,14 +175,30 @@ public class Robot extends TimedRobot100 {
   @Override
   public void teleopInit() {
     m_dutyCycle = 0;
+    Btesting = false;
+    joystickModeEnabled = false;
   }
 
   /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() {
-    m_dutyCycle = m_control.leftY()/10.0;
+
+    if (joystickModeEnabled) {
+      m_dutyCycle = m_control.leftY() * pctDutyCycleLimit;
+    } else if (Btesting) {
+      m_dutyCycle = 0.05;
+    } else {
+      m_dutyCycle = 0;
+    }
+
     motor.setDutyCycle(m_dutyCycle);
-    System.out.println(motor.encoder().getVelocityRad_S());
+ 
+    
+
+    //if (velocityRad_S >= target_velocityRad_S) {
+    //  Btesting = false;
+    //}
+    
   }
 
   /** This function is called once when the robot is disabled. */
