@@ -64,7 +64,11 @@ public class Robot extends TimedRobot100 {
   private double current_rotations_S;
   private double error_rotations_S;
 
-  private double current;
+  private double statorLimitBasis;
+  private double statorLimit;
+
+  private double pid_power;
+  private double pid_k = 0.5;
 
   /**
    * This function is run when the robot is first started up and should be used for any
@@ -110,11 +114,17 @@ public class Robot extends TimedRobot100 {
 
       current_rotations_S = (m_encoder.getVelocityRad_S() / (2*Math.PI))/4.0;
       error_rotations_S = target_rotations_S-current_rotations_S;
+      pid_power = pid_k * error_rotations_S;
+
+      
 
       SmartDashboard.putNumber("Discus/Rotations (s)/Actual", current_rotations_S);
       SmartDashboard.putNumber("Discus/Rotations (s)/Error", error_rotations_S);
       SmartDashboard.putNumber("Discus/Rotations (s)/Target", target_rotations_S);
-
+      SmartDashboard.putNumber("Discus/Stator Current/Actual",motor.getStatorCurrent());
+      SmartDashboard.putNumber("Discus/Stator Limit/Current",statorLimit);
+      SmartDashboard.putNumber("Discus/Stator Limit/Basis",statorLimitBasis);
+      SmartDashboard.putNumber("Discus/power/",pid_power);
 
       down = m_control.b();
       if (down && !bbuffer) {
@@ -175,6 +185,7 @@ public class Robot extends TimedRobot100 {
   @Override
   public void teleopInit() {
     m_dutyCycle = 0;
+    target_rotations_S = 0;
     Btesting = false;
     joystickModeEnabled = false;
   }
@@ -184,20 +195,14 @@ public class Robot extends TimedRobot100 {
   public void teleopPeriodic() {
 
     if (joystickModeEnabled) {
-      m_dutyCycle = m_control.leftY() * pctDutyCycleLimit;
+      target_rotations_S = 20 * (m_control.leftY() * pctDutyCycleLimit);
     } else if (Btesting) {
-      m_dutyCycle = 0.05;
+      target_rotations_S = 20 * (0.05);
     } else {
-      m_dutyCycle = 0;
+      target_rotations_S = 0;
     }
 
-    motor.setDutyCycle(m_dutyCycle);
- 
-    
-
-    //if (velocityRad_S >= target_velocityRad_S) {
-    //  Btesting = false;
-    //}
+    motor.setDutyCycle((target_rotations_S + pid_power) * 0.05);
     
   }
 
