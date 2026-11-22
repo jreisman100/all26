@@ -33,22 +33,35 @@ def main() -> None:
     done: Event = Event()  # to shut down all threads
     thread: Thread | None = None
     try:
-        camera: Camera = CameraFactory.get(identity)
-        # main display for annotated images
-        display1: Display = DisplayFactory.get(identity, camera, "display1", 0.25)
-        # secondary display
-        display2: Display = DisplayFactory.get(identity, camera, "display2", 1.0)
+
+    
+        cameras: list[Camera] = CameraFactory.get(identity)
+
+        threads = []
+
         network: Network = RealNetwork(identity, done)
         timestamps = Timestamps(network)
-        interpreter: Interpreter = InterpreterFactory.get(
-            identity, camera, display1, display2, network, timestamps
-        )
-        camera_loop: CameraLoop = CameraLoop(camera, interpreter, done)
-        thread = Thread(target=camera_loop.run)
+        
+        for device in cameras:
+        # main display for annotated images
+
+            display1: Display = DisplayFactory.get(identity, device, f"display{device.num}-1", 0.25)
+            # secondary display
+            display2: Display = DisplayFactory.get(identity, device, f"display{device.num}-2", 0.25)
+            
+            interpreter: Interpreter = InterpreterFactory.get(
+                identity, device, display1, display2, network, timestamps
+            )
+
+            camera_loop: CameraLoop = CameraLoop(device, interpreter, done)
+            threads.append(
+                Thread(target=camera_loop.run)
+            )
+
         print(f"[{datetime.now()}] " + "*** Starting the looper thread")
-        thread.start()
+        for thread in threads: thread.start()
         # looper.run will return when done, so wait for that.
-        thread.join()
+        for thread in threads: thread.join()
         print(f"[{datetime.now()}] " + "*** Looper has exited")
 
     finally:

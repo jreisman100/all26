@@ -10,11 +10,16 @@ class CameraFactory:
     """Choose a camera implementation based on identity."""
 
     @staticmethod
-    def get(identity: Identity) -> Camera:
+    def get(identity: Identity) -> list[Camera]:
         print(f"[{datetime.now()}] " + "*** CameraFactory for identity:", identity)
         try:
             # ImportError if we're not running on a Raspberry Pi.
             from app.camera.real_camera import RealCamera
+
+            devices = RealCamera.global_camera_info()
+
+            for device in devices:
+                print(f"[{datetime.now()}] " + "*** Found camera: ", f"{identity.value}-{device.number}")
 
             # IndexError if no camera is attached.
             print(
@@ -22,7 +27,7 @@ class CameraFactory:
                 file=stderr,
                 flush=True,
             )
-            return RealCamera(identity)
+            return [RealCamera(identity, i.number) for i in devices]
 
         except ImportError:
             from app.camera.fake_camera import FakeCamera
@@ -36,7 +41,7 @@ class CameraFactory:
             # return FakeCamera("images/tag_and_board.jpg", (1100, 620), -5)
             # full-size (huge)
             # return FakeCamera("images/tag_and_board.jpg", (5504, 3096), -0.1)
-            return FakeCamera("images/tag_and_board.jpg", (5504, 3096), 0)
+            return [ FakeCamera("images/tag_and_board.jpg", (5504, 3096), 0) ]
             # return FakeCamera("images/blob.jpg")
 
         except IndexError:

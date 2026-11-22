@@ -4,6 +4,7 @@ from pprint import pprint
 import subprocess
 import time
 from typing import Any, override
+from types import SimpleNamespace
 
 import numpy as np
 from numpy.typing import NDArray
@@ -37,18 +38,18 @@ class RealCamera(Camera):
     https://github.com/raspberrypi/picamera2/
     """
 
-    def __init__(self, identity: Identity) -> None:
+    def __init__(self, identity: Identity, num: int) -> None:
         print(f"[{datetime.now()}] " + "*** Camera: RealCamera")
         Picamera2.set_logging(Picamera2.INFO)  # type: ignore
         # debug logs with every frame (!)
-        # Picamera2.set_logging(Picamera2.DEBUG)  # type: ignore
-
-        print(f"[{datetime.now()}] " + "*** GLOBAL CAMERA INFO")
-        pprint(Picamera2.global_camera_info())  # type: ignore
+        #Picamera2.set_logging(Picamera2.DEBUG)  # type: ignore
 
         self._capture_error: bool = False
 
-        self._cam: Picamera2 = Picamera2()  # type: ignore
+        self._cam: Picamera2 = Picamera2(num)  # type: ignore
+
+        self.identity = identity
+        self.num = num
 
         print(f"[{datetime.now()}] " + "*** SENSOR MODES AVAILABLE")
         pprint(self._cam.sensor_modes)  # type: ignore
@@ -62,15 +63,16 @@ class RealCamera(Camera):
         self._mtx: Intrinsic = Intrinsic(identity)
         self._dist: Distortion = Distortion(identity)
 
-        model: Model = Model.get(self._cam.camera_properties)  # type: ignore
-        self._size: Size = Size.from_model(model)
+        self._model: Model = Model.get(self._cam.camera_properties)  # type: ignore
+        self._size: Size = Size.from_model(self._model)
 
-        config: Config = ConfigFactory.get(identity, self._size)
+        config: Config = ConfigFactory.get(identity, self._model)
         print(f"[{datetime.now()}] " + "*** CONFIG")
         pprint(config)
         self._camera_config: dict[str, Any] = self._get_config(  # type: ignore
             config, identity, self._cam  # type: ignore
         )
+
         self._decoder: Decoder = config.decoder()
         self._timestamp: CaptureTimestamp = CaptureTimestamp(config)
 
@@ -83,6 +85,8 @@ class RealCamera(Camera):
         pprint(self._camera_config)
 
         self._cam.configure(self._camera_config)  # type: ignore
+        print(f"[{datetime.now()}] " + "*** AAFTER CONFD CONFIG")
+        pprint(self._camera_config)
         self._check_config(config)
 
         self._cam.start()  # type: ignore
@@ -157,8 +161,8 @@ class RealCamera(Camera):
         """Verify the requested config matches the camera config."""
         print(f"[{datetime.now()}] " + "*** CONFIG CHECK")
         pprint(self._camera_config)
-        pprint(self._cam.camera_config)  # type: ignore
-        if not config.ok(self._camera_config, self._cam.camera_config):  # type: ignore
+        pprint(self._cam.camera_configuration())  # type: ignore
+        if not config.ok(self._camera_config, self._cam.camera_configuration()):  # type: ignore
             raise ValueError("Config check fail")
         print(f"[{datetime.now()}] " + "CONFIG CHECK GOOD")
 
@@ -168,12 +172,33 @@ class RealCamera(Camera):
         doesn't reset a wedged camera."""
         print(f"[{datetime.now()}] *** USB power cycle")
         try:
-          for hub in ("1", "2", "3", "4"):
-              subprocess.run(["/usr/sbin/uhubctl", "-l", hub, "-a", "off"],
-                             capture_output=True, timeout=10, check=False)
-          time.sleep(3)
-          for hub in ("1", "2", "3", "4"):
-              subprocess.run(["/usr/sbin/uhubctl", "-l", hub, "-a", "on"],
-                             capture_output=True, timeout=10, check=False)
+            for hub in ("1", "2", "3", "4"):
+                subprocess.run(
+                    ["/usr/sbin/uhubctl", "-l", hub, "-a", "off"],
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
+                )
+            time.sleep(3)
+            for hub in ("1", "2", "3", "4"):
+                subprocess.run(
+                    ["/usr/sbin/uhubctl", "-l", hub, "-a", "on"],
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
+                )
         except (OSError, subprocess.SubprocessError) as e:
-          print(f"[{datetime.now()}] *** USB power cycle failed: {e!r}")
+            print(f"[{datetime.now()}] *** USB power cycle failed: {e!r}")
+
+    @staticmethod
+    def global_camera_info() -> list[SimpleNamespace]:
+        devices: list[dict[str, str | int]] = Picamera2.global_camera_info()
+        return [
+            SimpleNamespace(
+                id = i['Id'],
+                location = i ['Location'],
+                model = i['Model'],
+                number = i['Num']
+            )
+            for i in devices
+        ]

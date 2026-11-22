@@ -1,48 +1,22 @@
 # pylint: disable=C0114,C0115,C0116,E0401,R0801
-from datetime import datetime
-from typing import Any, override
-
-from app.camera.config.config_protocol import Config
 from app.camera.size import Size
-from app.decoder.mjpeg_decoder import MjpegDecoder
+from app.camera.model import Model
+from app.camera.config.config_ardu_BO61O_mjpeg import ConfigArduMjpegBO61O
+from app.camera.config.config_ardu_OV9782_mjpeg import ConfigArduMjpegOV9782
 
 
-class ConfigArduMjpeg(Config):
-    """The Arducam camera, using the MJPEG encoding.
+def ConfigArduMjpeg(model: Model):
 
-    The MJPEG encoding seems better for all uses than the
-    YUYV encoding, because YUYV moves much more data.
-    """
+    match model:
 
-    def __init__(self, size: Size) -> None:
-        print(f"[{datetime.now()}] " + "*** Config: ConfigArduMjpeg")
-        self._size = size
+        case Model.ARDU_BO61O:
 
-    @override
-    def decoder(self) -> MjpegDecoder:
-        return MjpegDecoder(self._size)
+            return ConfigArduMjpegBO61O(Size.from_model(model))
 
-    @override
-    def extra_delay_ms(self) -> float:
-        return 2.5
+        case Model.ARDU_OV9782:
 
-    @override
-    def main(self) -> dict[str, Any]:
-        return {"format": "MJPEG", "size": (self._size.width, self._size.height)}
+            return ConfigArduMjpegOV9782(Size.from_model(model))
 
-    @override
-    def controls(self) -> dict[str, Any]:
-        return {
-            # ANALOGUE GAIN
-            # To minimize blur, set this as high as possible.
-            # On the Thiftycam the range is [1.0, 4.0]
-            # 4.0 seems to produce lots of noise
-            "AnalogueGain": 1.0,
-            #
-            # AUTO EXPOSURE
-            # Must be true for outside or in bright sun.
-            # "AeEnable": True,
-            "AeEnable": False,
-            # EXPOSURE TIME (microseconds)
-            "ExposureTime": 10000,
-        }
+        case _:
+
+            return ConfigArduMjpegBO61O(Size.from_model(model))

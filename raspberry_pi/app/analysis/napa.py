@@ -51,7 +51,7 @@ class Napa(MonoAnalysis):
         blips_with_corners: list[BlipWithCorners] = []
         detection: FiducialImageObservation
         for detection in result:
-            if detection.hamming > 0:  # Skip imperfect reads. TODO: Is this actually necessary? Why are we skipping these reads? # type: ignore
+            if detection.hamming > 2:  # Skip imperfect reads. TODO: Is this actually necessary? Why are we skipping these reads? # type: ignore
                 continue
 
             # Extract raw (x,y) corners from the tag.
@@ -73,10 +73,10 @@ class Napa(MonoAnalysis):
 
         config: dict[str, str | None | bool | int | float] = {
             "family": "tag36h11",  # default is 'tag36h11'. only one family supported at a time; for multiple at once, make another detector
-            "min_tag_px": 32,  # default is 32. lowering this allows detection of more distant tags, but uses more performance (cost grows 1/x^2)
+            "min_tag_px": 16,  # default is 32. lowering this allows detection of more distant tags, but uses more performance (cost grows 1/x^2)
             "max_hamming": None,  # default is None
-            "min_contrast": 45,  # default is 20. higher threshold = less noise passing filter = less to process = less cpu usage | TODO: test this in the field to see if we need to change this
-            "min_border_cells": 22,  # default is 22
+            "min_contrast": 40,  # default is 20. higher threshold = less noise passing filter = less to process = less cpu usage | TODO: test this in the field to see if we need to change this
+            "min_border_cells": 21,  # default is 22
             "sharpening": 0.25,  # default is 0.25. ranges 0 to 1
             "max_detections": 16,  # default is 64. it's unlikely we ever need to detect 64 tags, so 16 should be sufficient.
             "split_touching": False,  # bool or 'auto'
